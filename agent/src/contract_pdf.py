@@ -32,7 +32,9 @@ AMOUNT_FINANCED = "$38,500.00 USD"
 REPRESENTATIVE_NAME = "Marcela Duarte"
 
 
-def _dummy_representative_signature(width: float = 2.5 * inch, height: float = 0.9 * inch) -> Drawing:
+def _dummy_representative_signature(
+    width: float = 2.5 * inch, height: float = 0.9 * inch
+) -> Drawing:
     """A small drawn scribble standing in for the finance company's
     authorized-representative signature, so the PDF's signature block isn't
     lopsided with only the customer's side filled in. Built as vector shapes
@@ -151,7 +153,10 @@ def build_signed_contract_pdf(
 
     story = [
         Paragraph(FINANCE_CO_NAME, title_style),
-        Paragraph(f"Contrato de Financiamiento Vehicular &mdash; N.° {contract_number}", subtitle_style),
+        Paragraph(
+            f"Contrato de Financiamiento Vehicular &mdash; N.° {contract_number}",
+            subtitle_style,
+        ),
     ]
     for paragraph in paragraphs:
         story.append(Paragraph(paragraph, body_style))
@@ -162,7 +167,10 @@ def build_signed_contract_pdf(
     signature_block = Table(
         [
             [signature_image, _dummy_representative_signature()],
-            [Paragraph(typed_name, signature_name_style), Paragraph(REPRESENTATIVE_NAME, signature_name_style)],
+            [
+                Paragraph(typed_name, signature_name_style),
+                Paragraph(REPRESENTATIVE_NAME, signature_name_style),
+            ],
             [
                 Paragraph(f"Firma del Cliente &mdash; {signed_at}", signature_label_style),
                 Paragraph("Representante autorizado", signature_label_style),

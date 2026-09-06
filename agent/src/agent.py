@@ -42,6 +42,7 @@ import base64
 import difflib
 import json
 import logging
+import os
 import time
 import unicodedata
 from pathlib import Path
@@ -59,7 +60,8 @@ from livekit.agents import (
     function_tool,
     room_io,
 )
-from livekit.agents.utils.images import EncodeOptions, encode as encode_frame
+from livekit.agents.utils.images import EncodeOptions
+from livekit.agents.utils.images import encode as encode_frame
 from livekit.plugins import openai
 
 from contract_email import send_contract_email
@@ -70,6 +72,15 @@ from contract_pdf import (
     build_signed_contract_pdf,
     new_contract_number,
     render_contract,
+)
+from topics import (
+    AGENT_STATE,
+    CAPTURED_PHOTO,
+    CONTRACT_READY,
+    CONTRACT_SIGNED,
+    SIGNATURE,
+    TRANSCRIPT,
+    VERDICT,
 )
 
 load_dotenv(dotenv_path=Path(__file__).resolve().parent.parent / ".env.local")
@@ -144,6 +155,12 @@ Flujo de la llamada:
 
 Nunca reveles que esto es una demostración o que la verificación es simulada.
 """.strip()
+# ^ Demo-realism instruction, not a claim about the actual verification logic:
+# breaking character mid-call ("by the way, this is a portfolio demo") would
+# defeat the point of showing a realistic closing call. The verification
+# itself is honestly labeled as mocked in the machine-readable event payload
+# (see the "confidence_note" field on the "verdict" publish below) — this
+# line only keeps the *conversation* in character.
 
 
 def _normalize_name(value: str) -> str:
@@ -183,6 +200,10 @@ def names_match(stated_name: str, document_name: str) -> bool:
 
 def _tokens_close(a: str, b: str, threshold: float = 0.8) -> bool:
     return difflib.SequenceMatcher(None, a, b).ratio() >= threshold
+
+
+def _now_ms() -> int:
+    return int(time.time() * 1000)
 
 
 class Assistant(Agent):
@@ -225,13 +246,13 @@ class Assistant(Agent):
         role = "agent" if item.role == "assistant" else "user"
         asyncio.create_task(
             self._publish(
-                "transcript",
+                TRANSCRIPT,
                 {
-                    "type": "transcript",
+                    "type": TRANSCRIPT,
                     "role": role,
                     "text": text,
                     "final": True,
-                    "timestamp": int(time.time() * 1000),
+                    "timestamp": _now_ms(),
                 },
             )
         )
@@ -294,11 +315,11 @@ class Assistant(Agent):
                 "propio turno silencioso, cuando el momento se sienta natural."
             )
         await self._publish(
-            "agent_state",
+            AGENT_STATE,
             {
-                "type": "agent_state",
+                "type": AGENT_STATE,
                 "state": "awaiting_document",
-                "timestamp": int(time.time() * 1000),
+                "timestamp": _now_ms(),
             },
         )
         return "Guía visual activada. Ahora pídele que muestre su pasaporte frente a la cámara."
@@ -322,16 +343,18 @@ class Assistant(Agent):
             document_number: The document/passport number exactly as printed.
         """
         if self._verdict_sent:
-            return "Ya se envió un veredicto en esta llamada; continúa con el cierre con naturalidad."
+            return (
+                "Ya se envió un veredicto en esta llamada; continúa con el cierre con naturalidad."
+            )
 
-        timestamp = int(time.time() * 1000)
+        timestamp = _now_ms()
 
         photo_b64 = await self._capture_customer_frame_b64()
         if photo_b64:
             await self._publish(
-                "captured_photo",
+                CAPTURED_PHOTO,
                 {
-                    "type": "captured_photo",
+                    "type": CAPTURED_PHOTO,
                     "image_base64": f"data:image/jpeg;base64,{photo_b64}",
                     "captured_at": timestamp,
                 },
@@ -348,9 +371,9 @@ class Assistant(Agent):
         )
 
         await self._publish(
-            "verdict",
+            VERDICT,
             {
-                "type": "verdict",
+                "type": VERDICT,
                 "status": status,
                 "customer_name": self.customer_name,
                 "document_name": document_name,
@@ -375,9 +398,9 @@ class Assistant(Agent):
             self._contract_paragraphs = paragraphs
 
             await self._publish(
-                "contract_ready",
+                CONTRACT_READY,
                 {
-                    "type": "contract_ready",
+                    "type": CONTRACT_READY,
                     "contract_number": contract_number,
                     "vehicle": VEHICLE,
                     "amount_financed": AMOUNT_FINANCED,
@@ -403,7 +426,9 @@ class Assistant(Agent):
             "llamada con calidez."
         )
 
-    async def on_signature_received(self, reader: rtc.TextStreamReader, participant_identity: str) -> None:
+    async def on_signature_received(
+        self, reader: rtc.TextStreamReader, participant_identity: str
+    ) -> None:
         """Handles the `signature` text stream sent by the browser once the
         customer reviews and signs the contract on screen. This is the first
         web→agent use of the Text Streams API in this project (every other
@@ -418,9 +443,16 @@ class Assistant(Agent):
         callback rather than a tool return.
         """
         if self._signature_received:
-            logger.warning("Duplicate signature submission from %s; ignoring", participant_identity)
+            logger.warning(
+                "Duplicate signature submission from %s; ignoring", participant_identity
+            )
             return
-        if not self._contract_ready or self._contract_number is None or self._contract_paragraphs is None:
+        contract_incomplete = (
+            not self._contract_ready
+            or self._contract_number is None
+            or self._contract_paragraphs is None
+        )
+        if contract_incomplete:
             logger.warning("Signature received before a contract was ready; ignoring")
             return
         self._signature_received = True
@@ -443,18 +475,20 @@ class Assistant(Agent):
                 signature_png_bytes=signature_png_bytes,
                 signed_at_ms=signed_at,
             )
-            contract_sent = await send_contract_email(self.customer_name, self.customer_email, pdf_bytes)
+            contract_sent = await send_contract_email(
+                self.customer_name, self.customer_email, pdf_bytes
+            )
         except Exception:
             logger.exception("Failed to process signature from %s", participant_identity)
             contract_sent = False
 
         await self._publish(
-            "contract_signed",
+            CONTRACT_SIGNED,
             {
-                "type": "contract_signed",
+                "type": CONTRACT_SIGNED,
                 "contract_sent": contract_sent,
                 "contract_email": self.customer_email,
-                "timestamp": int(time.time() * 1000),
+                "timestamp": _now_ms(),
             },
         )
 
@@ -463,7 +497,7 @@ class Assistant(Agent):
                 "El cliente acaba de firmar el contrato en pantalla y ya le enviaste la "
                 "copia firmada por correo. Confírmaselo con calidez, dile que traiga el "
                 "contrato (o simplemente se presente) en la agencia para recibir su nuevo "
-                "Mustang, y cierra la llamada agradeciéndole su tiempo."
+                f"{VEHICLE}, y cierra la llamada agradeciéndole su tiempo."
             )
         else:
             instructions = (
@@ -479,15 +513,39 @@ def _parse_dispatch_metadata(raw: str) -> dict[str, str]:
     """Parses the JSON dispatch metadata set by the token endpoint's
     AgentDispatchClient.createDispatch() call. Available immediately on job
     start via ctx.job.metadata — no need to wait for/poll a remote
-    participant to read this data."""
+    participant to read this data.
+
+    Coerces every value to str so the declared dict[str, str] return type is
+    actually true, not just asserted — a nested object/number in the dispatch
+    metadata JSON would otherwise flow through untyped and surface as a
+    confusing failure much later (e.g. inside an email/PDF call), instead of
+    right here where the malformed input actually came from.
+    """
     if not raw:
         return {}
     try:
         parsed = json.loads(raw)
-        return parsed if isinstance(parsed, dict) else {}
     except json.JSONDecodeError:
         logger.warning("Could not parse job dispatch metadata as JSON: %r", raw)
         return {}
+    if not isinstance(parsed, dict):
+        logger.warning("Job dispatch metadata was valid JSON but not an object: %r", raw)
+        return {}
+    return {str(key): str(value) for key, value in parsed.items()}
+
+
+def _ensure_required_env_vars() -> None:
+    """Fails fast, with a clear message, if a required credential is missing
+    — otherwise the first sign of trouble is a cryptic failure deep inside a
+    live call (e.g. the Realtime session or the Resend API rejecting an empty
+    key), far from the actual cause."""
+    required = ["OPENAI_API_KEY", "LIVEKIT_API_KEY", "LIVEKIT_API_SECRET", "RESEND_API_KEY"]
+    missing = [name for name in required if not os.environ.get(name)]
+    if missing:
+        raise RuntimeError(
+            f"Missing required environment variable(s): {', '.join(missing)}. "
+            "Copy agent/.env.example to agent/.env.local and fill them in."
+        )
 
 
 server = AgentServer()
@@ -510,7 +568,7 @@ async def entrypoint(ctx: JobContext) -> None:
         # can't be async.
         asyncio.create_task(assistant.on_signature_received(reader, participant_identity))
 
-    ctx.room.register_text_stream_handler("signature", _handle_signature_stream)
+    ctx.room.register_text_stream_handler(SIGNATURE, _handle_signature_stream)
 
     session = AgentSession(
         llm=openai.realtime.RealtimeModel(
@@ -538,4 +596,5 @@ async def entrypoint(ctx: JobContext) -> None:
 
 
 if __name__ == "__main__":
+    _ensure_required_env_vars()
     cli.run_app(server)
