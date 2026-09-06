@@ -1,0 +1,4 @@
+livekit-agents[google]~=1.8
+python-dotenv
+resend
+Pillow

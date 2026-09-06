@@ -1,0 +1,59 @@
+<main class="dashboard">
+  <header class="dashboard-header">
+    <h1>Cierre de venta &mdash; {{ customerName }}</h1>
+    <span class="presence" [attr.data-state]="livekit.presence()">{{ presenceLabel }}</span>
+  </header>
+
+  @if (livekit.errorMessage(); as error) {
+    <p class="banner-error">{{ error }}</p>
+  }
+
+  <div class="grid">
+    <section class="panel call-panel">
+      <h2>Llamada en vivo</h2>
+      <video #localVideo autoplay playsinline muted class="video"></video>
+    </section>
+
+    <section class="panel transcript-panel">
+      <h2>Transcripción</h2>
+      <div class="transcript-list">
+        @for (line of livekit.transcript(); track $index) {
+          <p class="transcript-line" [attr.data-role]="line.role">
+            <span class="transcript-role">{{ line.role === 'agent' ? 'Agente' : 'Tú' }}</span>
+            {{ line.text }}
+          </p>
+        } @empty {
+          <p class="transcript-empty">La conversación aparecerá aquí.</p>
+        }
+      </div>
+    </section>
+
+    <section class="panel photo-panel">
+      <h2>Documento capturado</h2>
+      @if (livekit.capturedPhoto(); as photo) {
+        <img [src]="photo.image_base64" alt="Pasaporte capturado" class="captured-photo" />
+      } @else {
+        <div class="photo-placeholder">Aún no se ha capturado el pasaporte.</div>
+      }
+    </section>
+
+    <section class="panel verdict-panel">
+      <h2>Verificación</h2>
+      @if (livekit.verdict(); as verdict) {
+        <div class="verdict-card" [attr.data-status]="verdict.status">
+          <p class="verdict-title">
+            {{ verdict.status === 'validated' ? '✅ Validado' : '⚠️ Necesita revisión' }}
+          </p>
+          <p class="verdict-reason">{{ verdict.reason }}</p>
+          @if (verdict.status === 'validated' && verdict.contract_sent) {
+            <p class="verdict-contract">
+              Contrato enviado a <strong>{{ verdict.contract_email }}</strong>
+            </p>
+          }
+        </div>
+      } @else {
+        <div class="verdict-placeholder">El resultado aparecerá aquí tras mostrar tu pasaporte.</div>
+      }
+    </section>
+  </div>
+</main>

@@ -1,0 +1,53 @@
+<main class="intro">
+  <section class="card">
+    <p class="eyebrow">Demo &mdash; Meridiano Auto Finance</p>
+    <h1>Llamada de cierre: Ford Mustang</h1>
+    <p class="lead">
+      Esta es una demostración de una llamada de cierre de ventas asistida por un
+      agente de IA. Antes de finalizar el financiamiento de tu Ford Mustang, el
+      agente te pedirá que muestres tu pasaporte frente a la cámara para validar
+      tu identidad.
+    </p>
+
+    <form [formGroup]="form" (ngSubmit)="startCall()" class="form" novalidate>
+      <label class="field">
+        <span>Nombre completo</span>
+        <input
+          type="text"
+          formControlName="fullName"
+          placeholder="Ej. Michael Corleone"
+          autocomplete="name"
+        />
+        @if (fieldInvalid('fullName')) {
+          <span class="field-error">Ingresa tu nombre completo.</span>
+        }
+      </label>
+
+      <label class="field">
+        <span>Correo electrónico</span>
+        <input
+          type="email"
+          formControlName="email"
+          placeholder="tucorreo@ejemplo.com"
+          autocomplete="email"
+        />
+        @if (fieldInvalid('email')) {
+          <span class="field-error">Ingresa un correo válido.</span>
+        }
+      </label>
+
+      @if (errorMessage()) {
+        <p class="form-error">{{ errorMessage() }}</p>
+      }
+
+      <button type="submit" [disabled]="submitting()">
+        {{ submitting() ? 'Conectando…' : 'Comenzar la llamada de cierre' }}
+      </button>
+    </form>
+
+    <p class="fine-print">
+      Al continuar se solicitará acceso a tu cámara y micrófono para la
+      videollamada.
+    </p>
+  </section>
+</main>
