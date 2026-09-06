@@ -8,18 +8,58 @@
     <p class="banner-error">{{ error }}</p>
   }
 
-  <div class="grid">
-    <section class="panel call-panel">
-      <h2>Llamada en vivo</h2>
-      <video #localVideo autoplay playsinline muted class="video"></video>
-    </section>
+  @if (livekit.audioBlocked()) {
+    <button class="banner-audio" (click)="enableAudio()">🔊 Activar audio de la llamada</button>
+  }
 
+  @if (livekit.awaitingDocument()) {
+    <p class="banner-hint">
+      Muestra tu pasaporte frente a la cámara y avisa en voz alta:
+      <strong>&ldquo;Aquí está mi pasaporte&rdquo;</strong>
+    </p>
+  }
+
+  <section class="panel call-panel">
+    <h2>Llamada en vivo</h2>
+    <div class="call-tiles">
+      <div class="tile">
+        <video #localVideo autoplay playsinline muted class="video"></video>
+        @if (livekit.awaitingDocument()) {
+          <div class="doc-guide" aria-hidden="true">
+            <svg class="doc-guide-frame" viewBox="0 0 200 130" fill="none">
+              <path d="M8,42 V8 H42" />
+              <path d="M158,8 H192 V42" />
+              <path d="M8,88 V122 H42" />
+              <path d="M192,88 V122 H158" />
+            </svg>
+            <span class="doc-guide-label">Coloca tu pasaporte aquí</span>
+          </div>
+        }
+        <span class="tile-label">Tú</span>
+      </div>
+      <div class="tile agent-tile" [attr.data-speaking]="livekit.agentSpeaking()">
+        <div class="agent-avatar">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 8V4H8" />
+            <rect width="16" height="12" x="4" y="8" rx="2" />
+            <path d="M2 14h2" />
+            <path d="M20 14h2" />
+            <path d="M15 13v2" />
+            <path d="M9 13v2" />
+          </svg>
+        </div>
+        <span class="tile-label">Miguel &middot; {{ presenceLabel }}</span>
+      </div>
+    </div>
+  </section>
+
+  <div class="grid">
     <section class="panel transcript-panel">
       <h2>Transcripción</h2>
       <div class="transcript-list">
         @for (line of livekit.transcript(); track $index) {
           <p class="transcript-line" [attr.data-role]="line.role">
-            <span class="transcript-role">{{ line.role === 'agent' ? 'Agente' : 'Tú' }}</span>
+            <span class="transcript-role">{{ line.role === 'agent' ? 'Miguel' : 'Tú' }}</span>
             {{ line.text }}
           </p>
         } @empty {
@@ -28,31 +68,32 @@
       </div>
     </section>
 
-    <section class="panel photo-panel">
+    <section class="panel photo-panel" [attr.data-status]="livekit.verdict()?.status">
       <h2>Documento capturado</h2>
       @if (livekit.capturedPhoto(); as photo) {
-        <img [src]="photo.image_base64" alt="Pasaporte capturado" class="captured-photo" />
-      } @else {
-        <div class="photo-placeholder">Aún no se ha capturado el pasaporte.</div>
-      }
-    </section>
-
-    <section class="panel verdict-panel">
-      <h2>Verificación</h2>
-      @if (livekit.verdict(); as verdict) {
-        <div class="verdict-card" [attr.data-status]="verdict.status">
-          <p class="verdict-title">
-            {{ verdict.status === 'validated' ? '✅ Validado' : '⚠️ Necesita revisión' }}
-          </p>
-          <p class="verdict-reason">{{ verdict.reason }}</p>
-          @if (verdict.status === 'validated' && verdict.contract_sent) {
-            <p class="verdict-contract">
-              Contrato enviado a <strong>{{ verdict.contract_email }}</strong>
-            </p>
+        <div class="photo-frame">
+          <img [src]="photo.image_base64" alt="Pasaporte capturado" class="captured-photo" />
+          @if (livekit.verdict(); as verdict) {
+            <span class="photo-badge">
+              @if (verdict.status === 'validated') {
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M21.801 10A10 10 0 1 1 17 3.335" />
+                  <path d="m9 11 3 3L22 4" />
+                </svg>
+                Validado
+              } @else {
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z" />
+                  <path d="M12 9v4" />
+                  <path d="M12 17h.01" />
+                </svg>
+                Revisión
+              }
+            </span>
           }
         </div>
       } @else {
-        <div class="verdict-placeholder">El resultado aparecerá aquí tras mostrar tu pasaporte.</div>
+        <div class="photo-placeholder">Aún no se ha capturado el pasaporte.</div>
       }
     </section>
   </div>

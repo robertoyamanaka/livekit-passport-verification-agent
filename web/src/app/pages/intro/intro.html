@@ -1,13 +1,8 @@
 <main class="intro">
   <section class="card">
-    <p class="eyebrow">Demo &mdash; Meridiano Auto Finance</p>
-    <h1>Llamada de cierre: Ford Mustang</h1>
-    <p class="lead">
-      Esta es una demostración de una llamada de cierre de ventas asistida por un
-      agente de IA. Antes de finalizar el financiamiento de tu Ford Mustang, el
-      agente te pedirá que muestres tu pasaporte frente a la cámara para validar
-      tu identidad.
-    </p>
+    <p class="eyebrow">Meridiano Auto Finance</p>
+    <h1>Cierre de venta: Ford Mustang</h1>
+    <p class="lead">Ingresa tus datos para comenzar tu llamada de cierre.</p>
 
     <form [formGroup]="form" (ngSubmit)="startCall()" class="form" novalidate>
       <label class="field">
@@ -15,7 +10,7 @@
         <input
           type="text"
           formControlName="fullName"
-          placeholder="Ej. Michael Corleone"
+          placeholder="Ej. John Smith"
           autocomplete="name"
         />
         @if (fieldInvalid('fullName')) {
@@ -41,13 +36,10 @@
       }
 
       <button type="submit" [disabled]="submitting()">
-        {{ submitting() ? 'Conectando…' : 'Comenzar la llamada de cierre' }}
+        {{ submitting() ? 'Conectando…' : 'Comenzar la llamada' }}
       </button>
     </form>
 
-    <p class="fine-print">
-      Al continuar se solicitará acceso a tu cámara y micrófono para la
-      videollamada.
-    </p>
+    <p class="fine-print">Se solicitará acceso a tu cámara y micrófono.</p>
   </section>
 </main>
