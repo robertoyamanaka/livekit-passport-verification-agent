@@ -42,6 +42,10 @@ export class Call implements OnInit, AfterViewInit, OnDestroy {
     this.livekit.disconnect();
   }
 
+  enableAudio(): void {
+    this.livekit.retryAudio().catch((err) => console.error('Failed to enable audio', err));
+  }
+
   get presenceLabel(): string {
     switch (this.livekit.presence()) {
       case 'connecting':

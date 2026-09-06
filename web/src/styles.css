@@ -1,1 +1,12 @@
-/* You can add global styles to this file, and also import other style files */
+/* Global reset — without this, the default browser body margin shows as a
+   white border around every full-bleed page background. */
+html,
+body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+}
+
+* {
+  box-sizing: border-box;
+}

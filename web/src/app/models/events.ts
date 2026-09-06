@@ -9,6 +9,12 @@ export interface TranscriptEvent {
   timestamp: number;
 }
 
+export interface AgentStateEvent {
+  type: 'agent_state';
+  state: 'awaiting_document';
+  timestamp: number;
+}
+
 export interface CapturedPhotoEvent {
   type: 'captured_photo';
   image_base64: string;
