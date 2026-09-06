@@ -8,7 +8,10 @@
     "build": "ng build",
     "watch": "ng build --watch --configuration development",
     "test": "ng test --no-watch",
-    "test:coverage": "ng test --no-watch --coverage"
+    "test:coverage": "ng test --no-watch --coverage",
+    "lint": "ng lint",
+    "format": "prettier --write \"src/**/*.{ts,html,css}\"",
+    "format:check": "prettier --check \"src/**/*.{ts,html,css}\""
   },
   "private": true,
   "packageManager": "npm@11.19.0",
@@ -29,11 +32,16 @@
     "@angular/build": "^22.1.7",
     "@angular/cli": "^22.1.7",
     "@angular/compiler-cli": "^22.1.0",
+    "@eslint/js": "^10.0.1",
     "@vercel/node": "^12.0.1",
+    "angular-eslint": "22.2.0",
     "dotenv": "^17.4.2",
+    "eslint": "^10.9.0",
+    "eslint-config-prettier": "^10.1.8",
     "jsdom": "^25.0.1",
     "prettier": "^3.8.1",
     "typescript": "~6.0.2",
+    "typescript-eslint": "8.67.0",
     "vitest": "^4.0.8"
   }
 }
