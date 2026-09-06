@@ -1,0 +1,11 @@
+[project]
+name = "passport-verification-agent"
+version = "0.1.0"
+description = "Closing-call passport-verification voice+vision agent (LiveKit Agents + OpenAI Realtime)"
+requires-python = ">=3.11,<3.15"
+dependencies = [
+    "livekit-agents[openai]~=1.8",
+    "python-dotenv",
+    "resend",
+    "Pillow",
+]
