@@ -41,7 +41,14 @@
             <path d="M9 13v2" />
           </svg>
         </div>
-        <span class="tile-label">Miguel &middot; {{ presenceLabel }}</span>
+        <span class="tile-label">
+          Miguel &middot; {{ presenceLabel }}
+          @if (livekit.agentSpeaking()) {
+            <span class="speaking-bars" aria-hidden="true">
+              <span></span><span></span><span></span>
+            </span>
+          }
+        </span>
       </div>
     </div>
   </section>

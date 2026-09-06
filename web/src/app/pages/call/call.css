@@ -151,12 +151,29 @@
 
 .agent-tile {
   background: radial-gradient(circle at 50% 40%, #1c2333, var(--video-bg));
-  border-color: var(--video-border);
+  border: 2px solid var(--video-border);
   transition: border-color 0.15s ease;
 }
 
+/* A full-tile glowing halo, not just a border tint — needs to read at a
+   glance against the dark video background, not just up close. */
 .agent-tile[data-speaking='true'] {
   border-color: var(--accent);
+  animation: tile-glow 1.4s ease-in-out infinite;
+}
+
+@keyframes tile-glow {
+  0%,
+  100% {
+    box-shadow:
+      0 0 0 3px rgba(217, 119, 6, 0.35),
+      0 0 18px 2px rgba(217, 119, 6, 0.25);
+  }
+  50% {
+    box-shadow:
+      0 0 0 3px rgba(217, 119, 6, 0.6),
+      0 0 34px 8px rgba(217, 119, 6, 0.5);
+  }
 }
 
 .agent-avatar {
@@ -178,16 +195,46 @@
 
 .agent-tile[data-speaking='true'] .agent-avatar {
   color: var(--accent);
-  animation: pulse 1.1s ease-in-out infinite;
 }
 
-@keyframes pulse {
+/* Color-independent "speaking" cue — a small equalizer next to the name,
+   the same pattern Meet/Slack huddles use, so it reads without relying on
+   noticing a color or glow at all. */
+.speaking-bars {
+  display: inline-flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 0.7rem;
+  margin-left: 0.4rem;
+  vertical-align: middle;
+}
+
+.speaking-bars span {
+  width: 3px;
+  border-radius: 2px;
+  background: var(--accent);
+  animation: bar-bounce 0.9s ease-in-out infinite;
+}
+
+.speaking-bars span:nth-child(1) {
+  animation-delay: -0.3s;
+}
+
+.speaking-bars span:nth-child(2) {
+  animation-delay: -0.15s;
+}
+
+.speaking-bars span:nth-child(3) {
+  animation-delay: 0s;
+}
+
+@keyframes bar-bounce {
   0%,
   100% {
-    box-shadow: 0 0 0 0 rgba(217, 119, 6, 0.45);
+    height: 0.2rem;
   }
   50% {
-    box-shadow: 0 0 0 12px rgba(217, 119, 6, 0);
+    height: 0.7rem;
   }
 }
 
