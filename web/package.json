@@ -3,7 +3,8 @@
   "version": "0.0.0",
   "scripts": {
     "ng": "ng",
-    "start": "ng serve",
+    "start": "ng serve --proxy-config proxy.conf.json",
+    "dev:token": "node dev-token-server.mjs",
     "build": "ng build",
     "watch": "ng build --watch --configuration development",
     "test": "ng test"
@@ -27,6 +28,7 @@
     "@angular/cli": "^22.1.7",
     "@angular/compiler-cli": "^22.1.0",
     "@vercel/node": "^12.0.1",
+    "dotenv": "^17.4.2",
     "prettier": "^3.8.1",
     "typescript": "~6.0.2"
   }
