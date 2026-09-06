@@ -15,7 +15,10 @@ import resend
 logger = logging.getLogger("passport-verification-agent.email")
 
 CONTRACT_PDF_PATH = Path(__file__).resolve().parent.parent / "assets" / "mock_contract.pdf"
-SENDER = "Meridiano Auto Finance <onboarding@resend.dev>"
+# yamanaka.io is a verified sending domain in Resend, so this can deliver to
+# any recipient — not just the account's own address (the onboarding@resend.dev
+# sandbox sender is restricted to that).
+SENDER = "Meridiano Auto Finance <contratos@yamanaka.io>"
 
 
 async def send_contract_email(customer_name: str, customer_email: str) -> bool:
