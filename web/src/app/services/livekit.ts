@@ -13,11 +13,7 @@ import {
 } from '../models/events';
 
 export type AgentPresence =
-  | 'connecting'
-  | 'waiting_for_agent'
-  | 'agent_connected'
-  | 'disconnected'
-  | 'error';
+  'connecting' | 'waiting_for_agent' | 'agent_connected' | 'disconnected' | 'error';
 
 /**
  * Thin wrapper around livekit-client's Room. There's no official Angular
@@ -145,7 +141,10 @@ export class Livekit {
    * one place in the app that sends a text stream *to* the agent — every
    * other topic flows the other way — so it lives here alongside the rest
    * of the Room interaction rather than in a component. */
-  async submitSignature(payload: { typed_name: string; signature_image_base64: string }): Promise<void> {
+  async submitSignature(payload: {
+    typed_name: string;
+    signature_image_base64: string;
+  }): Promise<void> {
     if (!this.room) return;
     const message: SignatureSubmission = {
       type: TOPICS.signature,

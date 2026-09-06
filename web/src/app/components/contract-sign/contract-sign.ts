@@ -1,4 +1,13 @@
-import { AfterViewInit, Component, ElementRef, OnDestroy, ViewChild, input, output, signal } from '@angular/core';
+import {
+  AfterViewInit,
+  Component,
+  ElementRef,
+  OnDestroy,
+  ViewChild,
+  input,
+  output,
+  signal,
+} from '@angular/core';
 import SignaturePad from 'signature_pad';
 import { ContractReadyEvent, ContractSignedEvent } from '../../models/events';
 
@@ -85,7 +94,12 @@ export class ContractSign implements AfterViewInit, OnDestroy {
   }
 
   get canSubmit(): boolean {
-    return this.scrolledToEnd() && this.hasSignature() && this.typedName().trim().length > 0 && !this.submitting();
+    return (
+      this.scrolledToEnd() &&
+      this.hasSignature() &&
+      this.typedName().trim().length > 0 &&
+      !this.submitting()
+    );
   }
 
   submit(): void {

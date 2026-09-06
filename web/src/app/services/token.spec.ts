@@ -44,9 +44,9 @@ describe('Token', () => {
       }),
     );
 
-    await expect(
-      token.fetch({ identity: 'i', name: 'n', email: 'e', room: 'r' }),
-    ).rejects.toThrow('Agent dispatch failed');
+    await expect(token.fetch({ identity: 'i', name: 'n', email: 'e', room: 'r' })).rejects.toThrow(
+      'Agent dispatch failed',
+    );
   });
 
   it('falls back to a generic error when the failure response has no body', async () => {
@@ -59,8 +59,8 @@ describe('Token', () => {
       }),
     );
 
-    await expect(
-      token.fetch({ identity: 'i', name: 'n', email: 'e', room: 'r' }),
-    ).rejects.toThrow('Token request failed (503)');
+    await expect(token.fetch({ identity: 'i', name: 'n', email: 'e', room: 'r' })).rejects.toThrow(
+      'Token request failed (503)',
+    );
   });
 });
