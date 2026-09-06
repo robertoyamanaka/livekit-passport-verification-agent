@@ -10,3 +10,57 @@ body {
 * {
   box-sizing: border-box;
 }
+
+/* Shared design tokens — the single source of truth for color, radius,
+   shadow, and type across every page. Individual page/component stylesheets
+   read these via var(--...) instead of redeclaring their own values, so the
+   landing page and the call screen can never visually drift apart. */
+:root {
+  --font-sans:
+    'Inter',
+    -apple-system,
+    BlinkMacSystemFont,
+    'Segoe UI',
+    Roboto,
+    Helvetica,
+    Arial,
+    sans-serif;
+
+  /* Neutrals */
+  --bg: #f7f5f2;
+  --surface: #ffffff;
+  --surface-sunken: #f8fafc;
+  --border: rgba(15, 23, 42, 0.08);
+  --border-strong: rgba(15, 23, 42, 0.14);
+  --text: #1e2430;
+  --text-muted: #6b7280;
+
+  /* Brand accent — Mustang orange, kept as the one brand color throughout */
+  --accent: #d97706;
+  --accent-hover: #b45309;
+  --accent-soft: rgba(217, 119, 6, 0.12);
+
+  /* Semantic */
+  --success: #16a34a;
+  --success-soft: rgba(22, 163, 74, 0.1);
+  --danger: #dc2626;
+  --danger-soft: rgba(220, 38, 38, 0.1);
+  --warning: #b45309;
+  --warning-soft: rgba(217, 119, 6, 0.1);
+
+  /* Elevation — a crisp inner edge plus a soft diffuse drop, the layered
+     "Stripe-style" card shadow rather than one flat drop-shadow. */
+  --radius-sm: 10px;
+  --radius: 16px;
+  --radius-lg: 22px;
+  --shadow-sm: 0 1px 2px rgba(16, 24, 40, 0.04);
+  --shadow-card:
+    0 1px 2px rgba(16, 24, 40, 0.04),
+    0 16px 40px -12px rgba(16, 24, 40, 0.16);
+}
+
+body {
+  font-family: var(--font-sans);
+  color: var(--text);
+  background: var(--bg);
+}
