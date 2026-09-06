@@ -1,9 +1,32 @@
 """
 Closing-call passport-verification agent.
 
-A single Gemini Live realtime session handles both the sales conversation and
+A single OpenAI Realtime session handles both the sales conversation and
 native video perception — there is no separate vision-inference call. See
 PROJECT_BRIEF.md and the implementation plan for the full concept.
+
+This originally ran on Gemini Live (gemini-2.5-flash-native-audio-preview),
+which was swapped out for OpenAI's Realtime API after hitting a reproducible
+crash: that Gemini model closes the session (WS code 1007, "CONTENT_TYPE_AUDIO
+... not supported for this model configuration") when a function call and
+spoken audio are generated in the same turn. That's a documented, open
+reliability gap for this exact preview model — see livekit/livekit#3679,
+livekit/agents#4554, livekit/agents#5742, and LiveKit's community forum
+thread on this same error string — not something fixable from our side of the
+API. LiveKit's Agent/function_tool/AgentSession abstractions are provider-
+agnostic, so the swap only touched the `llm=` construction below; every tool
+and the transcript/verdict pipeline are untouched.
+
+A related bug surfaced after that swap during live testing: the model would
+sometimes call `show_passport_guide` inside its very first turn, interleaved
+with the opening greeting itself. OpenAI's Realtime API cuts the in-flight
+audio when a function call arrives mid-response, so the greeting got clipped,
+then re-spoken in full once the tool call resolved — an audible stutter/restart.
+Prompt wording alone can't guarantee a realtime model won't do this, so the
+fix is a code-level guard (`_customer_has_spoken`): the tool no-ops with a
+corrective instruction until at least one real user turn has been observed,
+the same defense-in-depth pattern already used for `_verdict_sent` on
+`capture_and_verify_passport`.
 """
 
 from __future__ import annotations
@@ -23,6 +46,7 @@ from livekit.agents import (
     Agent,
     AgentServer,
     AgentSession,
+    ConversationItemAddedEvent,
     JobContext,
     RunContext,
     cli,
@@ -30,7 +54,7 @@ from livekit.agents import (
     room_io,
 )
 from livekit.agents.utils.images import EncodeOptions, encode as encode_frame
-from livekit.plugins import google
+from livekit.plugins import openai
 
 from contract_email import send_contract_email
 
@@ -39,36 +63,54 @@ load_dotenv(dotenv_path=Path(__file__).resolve().parent.parent / ".env.local")
 logger = logging.getLogger("passport-verification-agent")
 
 FINANCE_CO_NAME = "Meridiano Auto Finance"
-GEMINI_LIVE_MODEL = "gemini-2.5-flash-native-audio-preview-12-2025"
-PARTICIPANT_WAIT_TIMEOUT_S = 15.0
+OPENAI_REALTIME_MODEL = "gpt-realtime"
+# "echo" is OpenAI's longest-standing, most consistently male-leaning voice —
+# matches the Miguel persona. Swapping it is a one-line change if it doesn't
+# land right in practice.
+OPENAI_REALTIME_VOICE = "echo"
 
 SYSTEM_INSTRUCTIONS = f"""
-Eres Sofía, especialista de cierre de ventas en {FINANCE_CO_NAME}, una financiera
+Eres Miguel, especialista de cierre de ventas en {FINANCE_CO_NAME}, una financiera
 de vehículos. Estás en una videollamada con un cliente llamado {{customer_name}}
 que ya pasó por todas las etapas previas del proceso de venta (necesidades,
 demostración, manejo de objeciones) y ahora está listo para cerrar el
 financiamiento de un Ford Mustang.
 
 Tu tono es cálido, profesional y respetuoso en todo momento — nunca informal,
-nunca robótico. Eres una vendedora experimentada cerrando una compra importante,
-no una asistente de soporte técnico.
+nunca robótico. Eres un vendedor experimentado cerrando una compra importante,
+no un asistente de soporte técnico.
+
+Regla general para toda la llamada: nunca llames una función en el mismo turno
+en que hablas. Cada función va en su propio turno, completamente silencioso
+(sin audio); habla recién en el turno siguiente, una vez que la función haya
+respondido.
+
+Sé breve en todo momento — respuestas de una o dos frases, nunca un monólogo.
+Esta llamada avanza rápido; no la alargues con rondas de cortesías innecesarias.
 
 Flujo de la llamada:
-1. Saluda a {{customer_name}} por su nombre, dale la bienvenida de vuelta como si
-   ya se hubieran reunido antes, y menciona brevemente que hoy es el día de
-   cerrar todo.
-2. Después de un breve intercambio cordial, explica de forma natural que antes
-   de finalizar necesitas validar su identidad: pídele amablemente que muestre
-   su pasaporte frente a la cámara.
-3. Observa el video con atención. Cuando puedas leer con claridad el nombre
+1. Tu primer turno es solo hablado y corto: saluda a {{customer_name}} por su
+   nombre, dale la bienvenida de vuelta como si ya se hubieran reunido antes, y
+   pregúntale brevemente cómo está. No llames ninguna función todavía.
+2. En cuanto el cliente responda — aunque sea con una frase muy breve —
+   reconoce su respuesta en una sola frase corta y pasa de inmediato a la
+   validación de identidad: no esperes una segunda respuesta suya ni agregues
+   más cortesías. Llama a la función `show_passport_guide` (turno silencioso,
+   según la regla general).
+3. En tu siguiente turno, ya hablado, explica de forma natural que antes de
+   finalizar necesitas validar su identidad, pídele amablemente que muestre su
+   pasaporte (o cédula/documento de identidad) frente a la cámara, y pídele
+   que te avise en voz alta (por ejemplo, diciendo "aquí está mi pasaporte")
+   una vez que lo tenga bien posicionado.
+4. Observa el video con atención. Cuando puedas leer con claridad el nombre
    completo Y el número de documento en el pasaporte, llama a la función
    `capture_and_verify_passport` con esos datos exactamente como aparecen
-   escritos en el documento. Si todavía no puedes leerlos con claridad, NO
-   llames la función — pide amablemente que acerque el documento a la cámara o
-   mejore la iluminación.
-4. Cuando la función responda, sigue exactamente la instrucción que te da sobre
+   escritos en el documento (turno silencioso). Si todavía no puedes leerlos
+   con claridad, NO llames la función — pide amablemente que acerque el
+   documento a la cámara o mejore la iluminación.
+5. Cuando la función responda, sigue exactamente la instrucción que te da sobre
    qué decir a continuación.
-5. Cierra la llamada de forma cálida y profesional.
+6. Cierra la llamada de forma cálida y profesional.
 
 Nunca reveles que esto es una demostración o que la verificación es simulada.
 """.strip()
@@ -122,9 +164,40 @@ class Assistant(Agent):
         self.customer_email = customer_email
         self.room: rtc.Room | None = None
         self._verdict_sent = False
+        self._customer_has_spoken = False
 
     def bind_room(self, room: rtc.Room) -> None:
         self.room = room
+
+    def on_conversation_item_added(self, event: ConversationItemAddedEvent) -> None:
+        """Mirrors each finalized conversation turn to the frontend's
+        transcript panel. Bound via session.on("conversation_item_added", ...)
+        in the entrypoint. That event is dispatched synchronously
+        (rtc.EventEmitter, not asyncio-aware) — the publish itself is async,
+        so it's scheduled as a task rather than awaited here."""
+        item = event.item
+        if item.type != "message" or item.role not in ("user", "assistant"):
+            return
+        text = item.text_content
+        if not text:
+            return
+        if item.role == "user":
+            self._customer_has_spoken = True
+        # The SDK's role is "assistant"/"user"; the frontend's data contract
+        # (shared with captured_photo/verdict) uses "agent"/"user".
+        role = "agent" if item.role == "assistant" else "user"
+        asyncio.create_task(
+            self._publish(
+                "transcript",
+                {
+                    "type": "transcript",
+                    "role": role,
+                    "text": text,
+                    "final": True,
+                    "timestamp": int(time.time() * 1000),
+                },
+            )
+        )
 
     async def _publish(self, topic: str, payload: dict) -> None:
         if self.room is None:
@@ -166,6 +239,34 @@ class Assistant(Agent):
         return None
 
     @function_tool(on_duplicate="reject")
+    async def show_passport_guide(self, context: RunContext) -> str:
+        """Call this in its own silent turn, right before you're about to ask
+        the customer to show their passport — never in the same turn as your
+        opening greeting. It lights up an on-screen placement guide on their
+        camera view. Once it returns, speak in your next turn to ask them to
+        show the passport.
+        """
+        if not self._customer_has_spoken:
+            # Guards against calling this during/right after the opening
+            # greeting, before the customer has said anything back — see the
+            # module docstring for why that's a real (not hypothetical) bug.
+            return (
+                "Todavía no llegó ninguna respuesta hablada del cliente. No actives la "
+                "guía todavía — continúa la conversación con calidez (cómo está, algún "
+                "comentario breve) y vuelve a llamar esta función más adelante, en su "
+                "propio turno silencioso, cuando el momento se sienta natural."
+            )
+        await self._publish(
+            "agent_state",
+            {
+                "type": "agent_state",
+                "state": "awaiting_document",
+                "timestamp": int(time.time() * 1000),
+            },
+        )
+        return "Guía visual activada. Ahora pídele que muestre su pasaporte frente a la cámara."
+
+    @function_tool(on_duplicate="reject")
     async def capture_and_verify_passport(
         self,
         context: RunContext,
@@ -175,7 +276,9 @@ class Assistant(Agent):
         """Call this only once the customer's passport name and document
         number are clearly legible on camera. Captures a still frame of the
         document, compares the name on it against the customer's known name,
-        and returns the verdict plus the exact next line to say.
+        and returns the verdict plus the exact next line to say. Call it in
+        its own silent turn with no spoken audio alongside it; speak only in
+        your next turn, once it returns.
 
         Args:
             document_name: The full name exactly as printed on the passport.
@@ -253,27 +356,19 @@ class Assistant(Agent):
         )
 
 
-async def _wait_for_customer(room: rtc.Room, timeout: float) -> rtc.RemoteParticipant | None:
-    """Returns the first remote participant, waiting briefly if none has
-    joined yet (agent dispatch usually happens right after the customer
-    joins, so this is normally instant)."""
-    if room.remote_participants:
-        return next(iter(room.remote_participants.values()))
-
-    found: asyncio.Future[rtc.RemoteParticipant] = asyncio.get_running_loop().create_future()
-
-    def _on_connected(participant: rtc.RemoteParticipant) -> None:
-        if not found.done():
-            found.set_result(participant)
-
-    room.on("participant_connected", _on_connected)
+def _parse_dispatch_metadata(raw: str) -> dict[str, str]:
+    """Parses the JSON dispatch metadata set by the token endpoint's
+    AgentDispatchClient.createDispatch() call. Available immediately on job
+    start via ctx.job.metadata — no need to wait for/poll a remote
+    participant to read this data."""
+    if not raw:
+        return {}
     try:
-        return await asyncio.wait_for(found, timeout=timeout)
-    except asyncio.TimeoutError:
-        logger.warning("No customer joined within %.0fs; using a generic greeting", timeout)
-        return None
-    finally:
-        room.off("participant_connected", _on_connected)
+        parsed = json.loads(raw)
+        return parsed if isinstance(parsed, dict) else {}
+    except json.JSONDecodeError:
+        logger.warning("Could not parse job dispatch metadata as JSON: %r", raw)
+        return {}
 
 
 server = AgentServer()
@@ -281,22 +376,31 @@ server = AgentServer()
 
 @server.rtc_session(agent_name="passport-verification-agent")
 async def entrypoint(ctx: JobContext) -> None:
-    await ctx.connect()
+    metadata = _parse_dispatch_metadata(ctx.job.metadata)
+    customer_name = (metadata.get("customer_name") or "").strip() or "cliente"
+    customer_email = metadata.get("email", "")
 
-    customer = await _wait_for_customer(ctx.room, PARTICIPANT_WAIT_TIMEOUT_S)
-    customer_name = (customer.name if customer and customer.name else "").strip() or "cliente"
-    customer_email = customer.attributes.get("email", "") if customer else ""
+    await ctx.connect()
 
     assistant = Assistant(customer_name=customer_name, customer_email=customer_email)
     assistant.bind_room(ctx.room)
 
     session = AgentSession(
-        llm=google.beta.realtime.RealtimeModel(
-            model=GEMINI_LIVE_MODEL,
-            proactivity=True,
-            enable_affective_dialog=True,
+        llm=openai.realtime.RealtimeModel(
+            model=OPENAI_REALTIME_MODEL,
+            voice=OPENAI_REALTIME_VOICE,
         ),
+        # LiveKit's default (3s) is a one-shot window, armed only on the agent's
+        # very first spoken turn, that suppresses interruption-detection while the
+        # client's browser-side echo cancellation converges. Miguel's opening
+        # greeting runs longer than that at a natural pace, so the window was
+        # closing mid-sentence and residual echo of his own voice was getting
+        # picked up as the customer interrupting him. Bumped to comfortably cover
+        # the greeting; has no effect on barge-in later in the call, since the
+        # timer never re-arms after its first firing.
+        aec_warmup_duration=6.0,
     )
+    session.on("conversation_item_added", assistant.on_conversation_item_added)
 
     await session.start(
         assistant,
