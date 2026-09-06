@@ -13,5 +13,8 @@ web/.env
 # LiveKit Cloud agent config (generated on deploy, may contain project-specific ids)
 # keep livekit.toml/agent.toml tracked once generated, unless it embeds secrets
 
+# Private local planning notes — not part of this project's public description.
+PROJECT_BRIEF.md
+
 # OS
 .DS_Store
