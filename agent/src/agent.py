@@ -2,8 +2,7 @@
 Closing-call passport-verification agent.
 
 A single OpenAI Realtime session handles both the sales conversation and
-native video perception — there is no separate vision-inference call. See
-PROJECT_BRIEF.md and the implementation plan for the full concept.
+native video perception — there is no separate vision-inference call.
 
 This originally ran on Gemini Live (gemini-2.5-flash-native-audio-preview),
 which was swapped out for OpenAI's Realtime API after hitting a reproducible
