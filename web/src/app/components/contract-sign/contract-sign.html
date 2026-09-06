@@ -1,0 +1,43 @@
+<div class="contract-meta">
+  <h2>Contrato de financiamiento</h2>
+  <p>
+    N.° {{ contract().contract_number }} &middot; {{ contract().vehicle }} &middot;
+    {{ contract().amount_financed }}
+  </p>
+</div>
+
+<div class="contract-scroll" #scrollArea (scroll)="onScroll($event)">
+  @for (paragraph of contract().paragraphs; track $index) {
+    <p>{{ paragraph }}</p>
+  }
+</div>
+
+@if (signedResult(); as result) {
+  <p class="signed-footer">✒️ Firmado por {{ typedName() }}.</p>
+} @else {
+  @if (!scrolledToEnd()) {
+    <p class="scroll-hint">Desplázate hasta el final del contrato para poder firmar.</p>
+  }
+
+  <div class="sign-row">
+    <label class="field">
+      <span>Nombre completo</span>
+      <input
+        type="text"
+        [value]="typedName()"
+        (input)="onTypedNameInput($event)"
+        [placeholder]="customerName()"
+      />
+    </label>
+
+    <div class="signature-field">
+      <span>Firma</span>
+      <canvas #signatureCanvas class="signature-canvas"></canvas>
+      <button type="button" class="link-button" (click)="clearSignature()">Limpiar firma</button>
+    </div>
+  </div>
+
+  <button class="sign-button" [disabled]="!canSubmit" (click)="submit()">
+    {{ submitting() ? 'Enviando…' : 'Firmar y confirmar' }}
+  </button>
+}
