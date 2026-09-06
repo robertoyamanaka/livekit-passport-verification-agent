@@ -26,6 +26,13 @@ fix is a code-level guard (`_customer_has_spoken`): the tool no-ops with a
 corrective instruction until at least one real user turn has been observed,
 the same defense-in-depth pattern already used for `_verdict_sent` on
 `capture_and_verify_passport`.
+
+On a validated verdict, the contract is no longer emailed immediately —
+instead it's shown on screen for the customer to actually review and sign
+(typed name + a drawn signature) before anything is sent. That signature
+comes back over a LiveKit text stream the *browser* initiates (topic
+`signature`), the reverse direction of every other topic in this file; see
+`Assistant.on_signature_received` and its registration in `entrypoint`.
 """
 
 from __future__ import annotations
@@ -56,12 +63,19 @@ from livekit.agents.utils.images import EncodeOptions, encode as encode_frame
 from livekit.plugins import openai
 
 from contract_email import send_contract_email
+from contract_pdf import (
+    AMOUNT_FINANCED,
+    FINANCE_CO_NAME,
+    VEHICLE,
+    build_signed_contract_pdf,
+    new_contract_number,
+    render_contract,
+)
 
 load_dotenv(dotenv_path=Path(__file__).resolve().parent.parent / ".env.local")
 
 logger = logging.getLogger("passport-verification-agent")
 
-FINANCE_CO_NAME = "Meridiano Auto Finance"
 OPENAI_REALTIME_MODEL = "gpt-realtime"
 # "echo" is OpenAI's longest-standing, most consistently male-leaning voice —
 # matches the Miguel persona. Swapping it is a one-line change if it doesn't
@@ -73,11 +87,16 @@ Eres Miguel, especialista de cierre de ventas en {FINANCE_CO_NAME}, una financie
 de vehículos. Estás en una videollamada con un cliente llamado {{customer_name}}
 que ya pasó por todas las etapas previas del proceso de venta (necesidades,
 demostración, manejo de objeciones) y ahora está listo para cerrar el
-financiamiento de un Ford Mustang.
+financiamiento de un {VEHICLE}.
 
 Tu tono es cálido, profesional y respetuoso en todo momento — nunca informal,
 nunca robótico. Eres un vendedor experimentado cerrando una compra importante,
-no un asistente de soporte técnico.
+no un asistente de soporte técnico leyendo un checklist. Cada frase debe sonar
+como algo que diría un vendedor real en el momento, nunca como un paso de un
+guion narrado en voz alta.
+
+Cuando menciones el vehículo, dilo siempre y exactamente como "{VEHICLE}".
+Nunca lo confundas ni lo sustituyas por otra marca o modelo de auto.
 
 Regla general para toda la llamada: nunca llames una función en el mismo turno
 en que hablas. Cada función va en su propio turno, completamente silencioso
@@ -92,15 +111,19 @@ Flujo de la llamada:
    nombre, dale la bienvenida de vuelta como si ya se hubieran reunido antes, y
    pregúntale brevemente cómo está. No llames ninguna función todavía.
 2. En cuanto el cliente responda — aunque sea con una frase muy breve —
-   reconoce su respuesta en una sola frase corta y pasa de inmediato a la
-   validación de identidad: no esperes una segunda respuesta suya ni agregues
-   más cortesías. Llama a la función `show_passport_guide` (turno silencioso,
+   reconoce su respuesta con una frase corta y cálida que NO mencione todavía
+   la validación de identidad (evita cualquier repetición con el paso 3; algo
+   como coincidir brevemente con su ánimo o decir que ya están en la recta
+   final). Sin esperar una segunda respuesta suya ni agregar más cortesías,
+   llama de inmediato a la función `show_passport_guide` (turno silencioso,
    según la regla general).
-3. En tu siguiente turno, ya hablado, explica de forma natural que antes de
-   finalizar necesitas validar su identidad, pídele amablemente que muestre su
-   pasaporte (o cédula/documento de identidad) frente a la cámara, y pídele
-   que te avise en voz alta (por ejemplo, diciendo "aquí está mi pasaporte")
-   una vez que lo tenga bien posicionado.
+3. En tu siguiente turno, ya hablado, conecta en una sola idea fluida — sin
+   repetir mecánicamente "voy a validar tu identidad" — el porqué y el qué:
+   que para poder entregarle el papeleo y las llaves de su {VEHICLE} primero
+   necesitas validar su identidad, y que para eso muestre su pasaporte (o
+   cédula/documento de identidad) frente a la cámara y te avise en voz alta
+   apenas lo tenga bien posicionado. No le pidas una frase exacta para
+   avisarte — cualquier confirmación verbal suya sirve.
 4. Observa el video con atención. Cuando puedas leer con claridad el nombre
    completo Y el número de documento en el pasaporte, llama a la función
    `capture_and_verify_passport` con esos datos exactamente como aparecen
@@ -108,7 +131,15 @@ Flujo de la llamada:
    con claridad, NO llames la función — pide amablemente que acerque el
    documento a la cámara o mejore la iluminación.
 5. Cuando la función responda, sigue exactamente la instrucción que te da sobre
-   qué decir a continuación.
+   qué decir a continuación. Si la identidad fue validada, esa instrucción te
+   pedirá invitar al cliente a revisar y firmar el contrato que acaba de
+   aparecer en su pantalla — hazlo en un tono cálido y luego guarda silencio
+   por completo: no llenes la espera con más comentarios ni le preguntes si ya
+   terminó. El cliente necesita tiempo para leer y firmar. Cuando lo haga,
+   recibirás instrucciones nuevas en un turno aparte (no será una función que
+   tú llames) indicándote exactamente cómo cerrar la llamada — síguelas al
+   pie de la letra. Si la identidad no fue validada, no hay contrato que
+   firmar: cierra la llamada de una vez (punto 6).
 6. Cierra la llamada de forma cálida y profesional.
 
 Nunca reveles que esto es una demostración o que la verificación es simulada.
@@ -164,6 +195,13 @@ class Assistant(Agent):
         self.room: rtc.Room | None = None
         self._verdict_sent = False
         self._customer_has_spoken = False
+        self._contract_ready = False
+        self._signature_received = False
+        # Filled in by capture_and_verify_passport on a validated verdict;
+        # on_signature_received needs these to build the final PDF, but they
+        # aren't known until the passport tool actually runs.
+        self._contract_number: str | None = None
+        self._contract_paragraphs: list[str] | None = None
 
     def bind_room(self, room: rtc.Room) -> None:
         self.room = room
@@ -309,12 +347,6 @@ class Assistant(Agent):
             else "El nombre en el documento no coincide o no fue legible con claridad."
         )
 
-        contract_sent = False
-        if status == "validated":
-            contract_sent = await send_contract_email(self.customer_name, self.customer_email)
-            if not contract_sent:
-                reason += " (hubo un problema técnico enviando el contrato)"
-
         await self._publish(
             "verdict",
             {
@@ -325,27 +357,44 @@ class Assistant(Agent):
                 "document_number": document_number,
                 "reason": reason,
                 "confidence_note": "mocked demo — not a real ID verification",
-                "contract_sent": contract_sent,
-                "contract_email": self.customer_email,
                 "timestamp": timestamp,
             },
         )
         self._verdict_sent = True
 
-        if status == "validated" and contract_sent:
-            return (
-                "Identidad validada y el contrato ya fue enviado por correo. Dile al "
-                "cliente, con calidez y profesionalismo, que le enviaste el contrato a su "
-                "correo, que lo revise con calma, y que una vez firmado lo traiga a la "
-                "agencia para recibir su nuevo Mustang. Luego cierra la llamada "
-                "agradeciéndole su tiempo."
+        if status == "validated":
+            contract_number = new_contract_number()
+            paragraphs = render_contract(
+                contract_number=contract_number,
+                customer_name=self.customer_name,
+                document_number=document_number,
             )
-        if status == "validated" and not contract_sent:
+            # Stashed for on_signature_received, which builds the actual PDF
+            # once the customer signs — this tool only shows the contract.
+            self._contract_number = contract_number
+            self._contract_paragraphs = paragraphs
+
+            await self._publish(
+                "contract_ready",
+                {
+                    "type": "contract_ready",
+                    "contract_number": contract_number,
+                    "vehicle": VEHICLE,
+                    "amount_financed": AMOUNT_FINANCED,
+                    "paragraphs": paragraphs,
+                    "timestamp": timestamp,
+                },
+            )
+            self._contract_ready = True
+
             return (
-                "La identidad fue validada, pero el envío del contrato falló por un "
-                "problema técnico. Dile al cliente, con calma y profesionalismo, que hubo "
-                "un inconveniente técnico enviando el contrato y que se lo harás llegar en "
-                "breve por correo. Cierra la llamada con calidez."
+                "Identidad validada. El contrato acaba de aparecer en la pantalla del "
+                "cliente para que lo revise y lo firme ahí mismo (puede escribir su "
+                "nombre y firmar con el mouse o el touchpad). Invítalo a hacerlo con "
+                "calidez, dile que tome el tiempo que necesite, y después no digas nada "
+                "más — guarda silencio por completo hasta que recibas nuevas "
+                "instrucciones para cerrar la llamada. No llames ninguna función para "
+                "esto; la firma llegará por sí sola."
             )
         return (
             "No se pudo validar la identidad automáticamente. Explícale al cliente, con "
@@ -353,6 +402,77 @@ class Assistant(Agent):
             "contacto para confirmar sus datos manualmente antes de continuar. Cierra la "
             "llamada con calidez."
         )
+
+    async def on_signature_received(self, reader: rtc.TextStreamReader, participant_identity: str) -> None:
+        """Handles the `signature` text stream sent by the browser once the
+        customer reviews and signs the contract on screen. This is the first
+        web→agent use of the Text Streams API in this project (every other
+        topic flows agent→web) — registered the same way LiveKit's own
+        examples do: a sync callback wrapping this coroutine in
+        asyncio.create_task.
+
+        Not a function_tool: the model doesn't call this, the customer's
+        browser does. Once the email is sent (or fails), this proactively
+        triggers the model to speak via session.generate_reply — the same
+        pattern LiveKit's idle-check examples use to speak from a timer
+        callback rather than a tool return.
+        """
+        if self._signature_received:
+            logger.warning("Duplicate signature submission from %s; ignoring", participant_identity)
+            return
+        if not self._contract_ready or self._contract_number is None or self._contract_paragraphs is None:
+            logger.warning("Signature received before a contract was ready; ignoring")
+            return
+        self._signature_received = True
+
+        try:
+            raw = await reader.read_all()
+            payload = json.loads(raw)
+            typed_name = str(payload.get("typed_name", "")).strip()
+            signature_data_url = str(payload.get("signature_image_base64", ""))
+            signed_at = int(payload.get("signed_at") or time.time() * 1000)
+
+            _, _, b64_data = signature_data_url.partition(",")
+            signature_png_bytes = base64.b64decode(b64_data) if b64_data else b""
+
+            pdf_bytes = build_signed_contract_pdf(
+                contract_number=self._contract_number,
+                customer_name=self.customer_name,
+                paragraphs=self._contract_paragraphs,
+                typed_name=typed_name or self.customer_name,
+                signature_png_bytes=signature_png_bytes,
+                signed_at_ms=signed_at,
+            )
+            contract_sent = await send_contract_email(self.customer_name, self.customer_email, pdf_bytes)
+        except Exception:
+            logger.exception("Failed to process signature from %s", participant_identity)
+            contract_sent = False
+
+        await self._publish(
+            "contract_signed",
+            {
+                "type": "contract_signed",
+                "contract_sent": contract_sent,
+                "contract_email": self.customer_email,
+                "timestamp": int(time.time() * 1000),
+            },
+        )
+
+        if contract_sent:
+            instructions = (
+                "El cliente acaba de firmar el contrato en pantalla y ya le enviaste la "
+                "copia firmada por correo. Confírmaselo con calidez, dile que traiga el "
+                "contrato (o simplemente se presente) en la agencia para recibir su nuevo "
+                "Mustang, y cierra la llamada agradeciéndole su tiempo."
+            )
+        else:
+            instructions = (
+                "El cliente firmó el contrato en pantalla, pero el envío del correo falló "
+                "por un problema técnico. Dile con calma que hubo un inconveniente enviando "
+                "la copia firmada y que se la harás llegar en breve. Cierra la llamada con "
+                "calidez."
+            )
+        await self.session.generate_reply(instructions=instructions)
 
 
 def _parse_dispatch_metadata(raw: str) -> dict[str, str]:
@@ -383,6 +503,14 @@ async def entrypoint(ctx: JobContext) -> None:
 
     assistant = Assistant(customer_name=customer_name, customer_email=customer_email)
     assistant.bind_room(ctx.room)
+
+    def _handle_signature_stream(reader: rtc.TextStreamReader, participant_identity: str) -> None:
+        # Sync callback wrapping the real (async) work — the exact shape
+        # LiveKit's own text-stream examples use, since handlers themselves
+        # can't be async.
+        asyncio.create_task(assistant.on_signature_received(reader, participant_identity))
+
+    ctx.room.register_text_stream_handler("signature", _handle_signature_stream)
 
     session = AgentSession(
         llm=openai.realtime.RealtimeModel(
