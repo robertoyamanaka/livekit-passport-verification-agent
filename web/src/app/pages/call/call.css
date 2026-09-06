@@ -100,21 +100,6 @@
   background: rgba(245, 158, 11, 0.24);
 }
 
-.banner-hint {
-  margin: 0;
-  width: 100%;
-  background: var(--accent-soft);
-  border: 1px solid rgba(217, 119, 6, 0.35);
-  color: var(--text);
-  padding: 0.75rem 1rem;
-  border-radius: 12px;
-  font-size: 0.88rem;
-}
-
-.banner-hint strong {
-  color: var(--accent);
-}
-
 .panel {
   background: var(--surface-solid);
   border: 1px solid var(--border);
@@ -378,4 +363,25 @@
   justify-content: center;
   border: 1px dashed var(--border);
   border-radius: 10px;
+}
+
+.contract-panel {
+  min-height: 0;
+}
+
+.contract-receipt {
+  font-size: 0.9rem;
+  padding: 0.85rem 1rem;
+  border-radius: 10px;
+  background: var(--danger-soft);
+  border: 1px solid rgba(245, 158, 11, 0.35);
+}
+
+.contract-receipt[data-sent='true'] {
+  background: var(--success-soft);
+  border-color: rgba(34, 197, 94, 0.35);
+}
+
+.contract-receipt p {
+  margin: 0;
 }

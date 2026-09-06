@@ -12,13 +12,6 @@
     <button class="banner-audio" (click)="enableAudio()">🔊 Activar audio de la llamada</button>
   }
 
-  @if (livekit.awaitingDocument()) {
-    <p class="banner-hint">
-      Muestra tu pasaporte frente a la cámara y avisa en voz alta:
-      <strong>&ldquo;Aquí está mi pasaporte&rdquo;</strong>
-    </p>
-  }
-
   <section class="panel call-panel">
     <h2>Llamada en vivo</h2>
     <div class="call-tiles">
@@ -97,4 +90,24 @@
       }
     </section>
   </div>
+
+  @if (livekit.contract(); as contract) {
+    <section class="panel contract-panel">
+      @if (livekit.contractSigned(); as signed) {
+        <div class="contract-receipt" [attr.data-sent]="signed.contract_sent">
+          @if (signed.contract_sent) {
+            <p>✅ Contrato firmado y enviado a {{ signed.contract_email }}.</p>
+          } @else {
+            <p>⚠️ Contrato firmado, pero hubo un problema enviando el correo. Se reintentará en breve.</p>
+          }
+        </div>
+      }
+      <app-contract-sign
+        [contract]="contract"
+        [customerName]="customerName"
+        [signedResult]="livekit.contractSigned()"
+        (signed)="onContractSigned($event)"
+      />
+    </section>
+  }
 </main>

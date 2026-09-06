@@ -1,11 +1,12 @@
 import { AfterViewInit, Component, ElementRef, OnDestroy, OnInit, ViewChild, inject } from '@angular/core';
 import { Router } from '@angular/router';
+import { ContractSign } from '../../components/contract-sign/contract-sign';
 import { Connection, PendingConnection } from '../../services/connection';
 import { Livekit } from '../../services/livekit';
 
 @Component({
   selector: 'app-call',
-  imports: [],
+  imports: [ContractSign],
   templateUrl: './call.html',
   styleUrl: './call.css',
 })
@@ -44,6 +45,10 @@ export class Call implements OnInit, AfterViewInit, OnDestroy {
 
   enableAudio(): void {
     this.livekit.retryAudio().catch((err) => console.error('Failed to enable audio', err));
+  }
+
+  onContractSigned(payload: { typed_name: string; signature_image_base64: string }): void {
+    this.livekit.submitSignature(payload).catch((err) => console.error('Failed to submit signature', err));
   }
 
   get presenceLabel(): string {
