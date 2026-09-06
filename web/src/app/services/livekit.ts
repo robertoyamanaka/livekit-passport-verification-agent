@@ -1,11 +1,13 @@
 import { Service, signal } from '@angular/core';
 import { Room, RoomEvent, Track } from 'livekit-client';
+import type { TextStreamReader } from 'livekit-client';
 import {
   AgentStateEvent,
   CapturedPhotoEvent,
   ContractReadyEvent,
   ContractSignedEvent,
   SignatureSubmission,
+  TOPICS,
   TranscriptEvent,
   VerdictEvent,
 } from '../models/events';
@@ -74,56 +76,23 @@ export class Livekit {
       track.detach().forEach((el) => el.remove());
     });
 
-    room.registerTextStreamHandler('transcript', (reader) => {
-      reader
-        .readAll()
-        .then((text) => {
-          const event = JSON.parse(text) as TranscriptEvent;
-          this.transcript.update((list) => [...list, event]);
-        })
-        .catch((err) => console.error('Failed to read transcript stream', err));
+    this.registerJsonStream(room, TOPICS.transcript, (event: TranscriptEvent) => {
+      this.transcript.update((list) => [...list, event]);
     });
-
-    room.registerTextStreamHandler('agent_state', (reader) => {
-      reader
-        .readAll()
-        .then((text) => {
-          const event = JSON.parse(text) as AgentStateEvent;
-          this.awaitingDocument.set(event.state === 'awaiting_document');
-        })
-        .catch((err) => console.error('Failed to read agent_state stream', err));
+    this.registerJsonStream(room, TOPICS.agentState, (event: AgentStateEvent) => {
+      this.awaitingDocument.set(event.state === 'awaiting_document');
     });
-
-    room.registerTextStreamHandler('captured_photo', (reader) => {
-      reader
-        .readAll()
-        .then((text) => {
-          this.capturedPhoto.set(JSON.parse(text) as CapturedPhotoEvent);
-          this.awaitingDocument.set(false);
-        })
-        .catch((err) => console.error('Failed to read captured_photo stream', err));
+    this.registerJsonStream(room, TOPICS.capturedPhoto, (event: CapturedPhotoEvent) => {
+      this.capturedPhoto.set(event);
+      this.awaitingDocument.set(false);
     });
-
-    room.registerTextStreamHandler('verdict', (reader) => {
-      reader
-        .readAll()
-        .then((text) => this.verdict.set(JSON.parse(text) as VerdictEvent))
-        .catch((err) => console.error('Failed to read verdict stream', err));
-    });
-
-    room.registerTextStreamHandler('contract_ready', (reader) => {
-      reader
-        .readAll()
-        .then((text) => this.contract.set(JSON.parse(text) as ContractReadyEvent))
-        .catch((err) => console.error('Failed to read contract_ready stream', err));
-    });
-
-    room.registerTextStreamHandler('contract_signed', (reader) => {
-      reader
-        .readAll()
-        .then((text) => this.contractSigned.set(JSON.parse(text) as ContractSignedEvent))
-        .catch((err) => console.error('Failed to read contract_signed stream', err));
-    });
+    this.registerJsonStream(room, TOPICS.verdict, (event: VerdictEvent) => this.verdict.set(event));
+    this.registerJsonStream(room, TOPICS.contractReady, (event: ContractReadyEvent) =>
+      this.contract.set(event),
+    );
+    this.registerJsonStream(room, TOPICS.contractSigned, (event: ContractSignedEvent) =>
+      this.contractSigned.set(event),
+    );
 
     try {
       await room.connect(url, token);
@@ -148,6 +117,22 @@ export class Livekit {
     }
   }
 
+  /** Registers a JSON-over-text-stream handler for one topic: reads the full
+   * stream, parses it, and hands the typed payload to `onEvent`. Every
+   * agent->web topic (transcript/agent_state/captured_photo/verdict/
+   * contract_ready/contract_signed) followed the same 8-line read-parse-catch
+   * shape copy-pasted six times; this is the one place that logic lives now,
+   * so a parse failure on any topic is handled identically instead of by
+   * whichever copy happened to be edited most recently. */
+  private registerJsonStream<T>(room: Room, topic: string, onEvent: (event: T) => void): void {
+    room.registerTextStreamHandler(topic, (reader: TextStreamReader) => {
+      reader
+        .readAll()
+        .then((text) => onEvent(JSON.parse(text) as T))
+        .catch((err) => console.error(`Failed to read ${topic} stream`, err));
+    });
+  }
+
   /** Retries audio playback from a click handler — browsers allow this even
    * when the earlier automatic startAudio() call was blocked. */
   async retryAudio(): Promise<void> {
@@ -163,12 +148,12 @@ export class Livekit {
   async submitSignature(payload: { typed_name: string; signature_image_base64: string }): Promise<void> {
     if (!this.room) return;
     const message: SignatureSubmission = {
-      type: 'signature',
+      type: TOPICS.signature,
       typed_name: payload.typed_name,
       signature_image_base64: payload.signature_image_base64,
       signed_at: Date.now(),
     };
-    await this.room.localParticipant.sendText(JSON.stringify(message), { topic: 'signature' });
+    await this.room.localParticipant.sendText(JSON.stringify(message), { topic: TOPICS.signature });
   }
 
   disconnect(): void {
