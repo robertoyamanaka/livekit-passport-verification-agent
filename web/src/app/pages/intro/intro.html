@@ -1,45 +1,55 @@
 <main class="intro">
-  <section class="card">
-    <p class="eyebrow">Meridiano Auto Finance</p>
-    <h1>Cierre de venta: Ford Mustang</h1>
-    <p class="lead">Ingresa tus datos para comenzar tu llamada de cierre.</p>
+  <div class="intro-grid">
+    <section class="card">
+      <p class="eyebrow">Meridiano Auto Finance</p>
+      <h1>Ya casi tienes las llaves de tu Ford Mustang.</h1>
+      <p class="lead">
+        Termina tu proceso de financiamiento con una breve videollamada de cierre:
+        validaremos tu identidad y firmarás tu contrato ahí mismo, en minutos.
+      </p>
 
-    <form [formGroup]="form" (ngSubmit)="startCall()" class="form" novalidate>
-      <label class="field">
-        <span>Nombre completo</span>
-        <input
-          type="text"
-          formControlName="fullName"
-          placeholder="Ej. John Smith"
-          autocomplete="name"
-        />
-        @if (fieldInvalid('fullName')) {
-          <span class="field-error">Ingresa tu nombre completo.</span>
+      <form [formGroup]="form" (ngSubmit)="startCall()" class="form" novalidate>
+        <label class="field">
+          <span>Nombre completo</span>
+          <input
+            type="text"
+            formControlName="fullName"
+            placeholder="Ej. John Smith"
+            autocomplete="name"
+          />
+          @if (fieldInvalid('fullName')) {
+            <span class="field-error">Ingresa tu nombre completo.</span>
+          }
+        </label>
+
+        <label class="field">
+          <span>Correo electrónico</span>
+          <input
+            type="email"
+            formControlName="email"
+            placeholder="tucorreo@ejemplo.com"
+            autocomplete="email"
+          />
+          @if (fieldInvalid('email')) {
+            <span class="field-error">Ingresa un correo válido.</span>
+          }
+        </label>
+
+        @if (errorMessage()) {
+          <p class="form-error">{{ errorMessage() }}</p>
         }
-      </label>
 
-      <label class="field">
-        <span>Correo electrónico</span>
-        <input
-          type="email"
-          formControlName="email"
-          placeholder="tucorreo@ejemplo.com"
-          autocomplete="email"
-        />
-        @if (fieldInvalid('email')) {
-          <span class="field-error">Ingresa un correo válido.</span>
-        }
-      </label>
+        <button type="submit" [disabled]="submitting()">
+          {{ submitting() ? 'Conectando…' : 'Comenzar la llamada' }}
+        </button>
+      </form>
 
-      @if (errorMessage()) {
-        <p class="form-error">{{ errorMessage() }}</p>
-      }
+      <p class="fine-print">Se solicitará acceso a tu cámara y micrófono.</p>
+    </section>
 
-      <button type="submit" [disabled]="submitting()">
-        {{ submitting() ? 'Conectando…' : 'Comenzar la llamada' }}
-      </button>
-    </form>
-
-    <p class="fine-print">Se solicitará acceso a tu cámara y micrófono.</p>
-  </section>
+    <div class="hero">
+      <img class="hero-image" src="/ford-mustang.jpg" alt="Ford Mustang" />
+      <div class="hero-caption">Ford Mustang &middot; Financiamiento aprobado</div>
+    </div>
+  </div>
 </main>
