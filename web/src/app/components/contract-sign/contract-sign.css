@@ -45,6 +45,13 @@
   color: var(--accent);
 }
 
+.submit-error {
+  margin: 0;
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: var(--danger);
+}
+
 .signed-footer {
   margin: 0;
   font-size: 0.85rem;

@@ -32,7 +32,12 @@
 
     <div class="signature-field">
       <span>Firma</span>
-      <canvas #signatureCanvas class="signature-canvas"></canvas>
+      <canvas
+        #signatureCanvas
+        class="signature-canvas"
+        role="img"
+        aria-label="Área para dibujar tu firma con el mouse o el dedo"
+      ></canvas>
       <button type="button" class="link-button" (click)="clearSignature()">Limpiar firma</button>
     </div>
   </div>
@@ -40,4 +45,8 @@
   <button class="sign-button" [disabled]="!canSubmit" (click)="submit()">
     {{ submitting() ? 'Enviando…' : 'Firmar y confirmar' }}
   </button>
+
+  @if (submitError(); as error) {
+    <p class="submit-error" role="alert">{{ error }}</p>
+  }
 }

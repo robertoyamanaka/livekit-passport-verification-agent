@@ -35,6 +35,7 @@ export class ContractSign implements AfterViewInit, OnDestroy {
   readonly scrolledToEnd = signal(false);
   readonly hasSignature = signal(false);
   readonly submitting = signal(false);
+  readonly submitError = signal<string | null>(null);
 
   private pad: SignaturePad | null = null;
 
@@ -90,9 +91,19 @@ export class ContractSign implements AfterViewInit, OnDestroy {
   submit(): void {
     if (!this.canSubmit || !this.pad) return;
     this.submitting.set(true);
+    this.submitError.set(null);
     this.signed.emit({
       typed_name: this.typedName().trim(),
       signature_image_base64: this.pad.toDataURL('image/png'),
     });
+  }
+
+  /** Called by the parent (Call) when livekit.submitSignature() rejects —
+   * emit() has no return channel of its own, so the parent reaches back in
+   * here rather than the signature silently vanishing into a stuck
+   * "Enviando…" button with no way to retry. */
+  markSubmitFailed(message: string): void {
+    this.submitting.set(false);
+    this.submitError.set(message);
   }
 }

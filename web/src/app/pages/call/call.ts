@@ -12,6 +12,7 @@ import { Livekit } from '../../services/livekit';
 })
 export class Call implements OnInit, AfterViewInit, OnDestroy {
   @ViewChild('localVideo') private videoRef!: ElementRef<HTMLVideoElement>;
+  @ViewChild(ContractSign) private contractSignPanel?: ContractSign;
 
   private readonly connectionStore = inject(Connection);
   private readonly router = inject(Router);
@@ -48,7 +49,14 @@ export class Call implements OnInit, AfterViewInit, OnDestroy {
   }
 
   onContractSigned(payload: { typed_name: string; signature_image_base64: string }): void {
-    this.livekit.submitSignature(payload).catch((err) => console.error('Failed to submit signature', err));
+    this.livekit.submitSignature(payload).catch((err) => {
+      console.error('Failed to submit signature', err);
+      // Without this, the panel is stuck showing "Enviando…" forever with no
+      // way to retry — put it back in the editable state with a clear error.
+      this.contractSignPanel?.markSubmitFailed(
+        'No se pudo enviar la firma. Verifica tu conexión e intenta de nuevo.',
+      );
+    });
   }
 
   get presenceLabel(): string {
