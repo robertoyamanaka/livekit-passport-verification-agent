@@ -22,8 +22,8 @@ export class Call implements OnInit, AfterViewInit, OnDestroy {
   ngOnInit(): void {
     this.pending = this.connectionStore.consume();
     if (!this.pending) {
-      // No token in hand (e.g. a page reload) — the flow always starts at /intro.
-      this.router.navigateByUrl('/intro');
+      // No token in hand (e.g. a page reload) — the flow always starts at /.
+      this.router.navigateByUrl('/');
       return;
     }
     this.customerName = this.pending.customerName;
