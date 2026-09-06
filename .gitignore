@@ -1,0 +1,17 @@
+# Python
+agent/.venv/
+__pycache__/
+*.pyc
+agent/.env.local
+
+# Node / Angular
+web/node_modules/
+web/dist/
+web/.angular/
+web/.env
+
+# LiveKit Cloud agent config (generated on deploy, may contain project-specific ids)
+# keep livekit.toml/agent.toml tracked once generated, unless it embeds secrets
+
+# OS
+.DS_Store
