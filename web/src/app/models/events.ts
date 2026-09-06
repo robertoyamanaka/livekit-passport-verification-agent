@@ -29,6 +29,27 @@ export interface VerdictEvent {
   document_number: string;
   reason: string;
   confidence_note: string;
+  timestamp: number;
+}
+
+export interface ContractReadyEvent {
+  type: 'contract_ready';
+  contract_number: string;
+  vehicle: string;
+  amount_financed: string;
+  paragraphs: string[];
+  timestamp: number;
+}
+
+export interface SignatureSubmission {
+  type: 'signature';
+  typed_name: string;
+  signature_image_base64: string;
+  signed_at: number;
+}
+
+export interface ContractSignedEvent {
+  type: 'contract_signed';
   contract_sent: boolean;
   contract_email: string;
   timestamp: number;

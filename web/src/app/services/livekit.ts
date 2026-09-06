@@ -1,6 +1,14 @@
 import { Service, signal } from '@angular/core';
 import { Room, RoomEvent, Track } from 'livekit-client';
-import { AgentStateEvent, CapturedPhotoEvent, TranscriptEvent, VerdictEvent } from '../models/events';
+import {
+  AgentStateEvent,
+  CapturedPhotoEvent,
+  ContractReadyEvent,
+  ContractSignedEvent,
+  SignatureSubmission,
+  TranscriptEvent,
+  VerdictEvent,
+} from '../models/events';
 
 export type AgentPresence =
   | 'connecting'
@@ -26,6 +34,8 @@ export class Livekit {
   readonly awaitingDocument = signal(false);
   readonly capturedPhoto = signal<CapturedPhotoEvent | null>(null);
   readonly verdict = signal<VerdictEvent | null>(null);
+  readonly contract = signal<ContractReadyEvent | null>(null);
+  readonly contractSigned = signal<ContractSignedEvent | null>(null);
   readonly errorMessage = signal<string | null>(null);
 
   async connect(url: string, token: string, localVideoEl: HTMLVideoElement): Promise<void> {
@@ -101,6 +111,20 @@ export class Livekit {
         .catch((err) => console.error('Failed to read verdict stream', err));
     });
 
+    room.registerTextStreamHandler('contract_ready', (reader) => {
+      reader
+        .readAll()
+        .then((text) => this.contract.set(JSON.parse(text) as ContractReadyEvent))
+        .catch((err) => console.error('Failed to read contract_ready stream', err));
+    });
+
+    room.registerTextStreamHandler('contract_signed', (reader) => {
+      reader
+        .readAll()
+        .then((text) => this.contractSigned.set(JSON.parse(text) as ContractSignedEvent))
+        .catch((err) => console.error('Failed to read contract_signed stream', err));
+    });
+
     try {
       await room.connect(url, token);
       await room.localParticipant.setMicrophoneEnabled(true);
@@ -130,6 +154,21 @@ export class Livekit {
     if (!this.room) return;
     await this.room.startAudio().catch(() => undefined);
     this.audioBlocked.set(!this.room.canPlaybackAudio);
+  }
+
+  /** Sends the customer's signed contract data to the agent. This is the
+   * one place in the app that sends a text stream *to* the agent — every
+   * other topic flows the other way — so it lives here alongside the rest
+   * of the Room interaction rather than in a component. */
+  async submitSignature(payload: { typed_name: string; signature_image_base64: string }): Promise<void> {
+    if (!this.room) return;
+    const message: SignatureSubmission = {
+      type: 'signature',
+      typed_name: payload.typed_name,
+      signature_image_base64: payload.signature_image_base64,
+      signed_at: Date.now(),
+    };
+    await this.room.localParticipant.sendText(JSON.stringify(message), { topic: 'signature' });
   }
 
   disconnect(): void {
