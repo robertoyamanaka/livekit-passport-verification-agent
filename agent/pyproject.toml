@@ -5,8 +5,26 @@ description = "Closing-call passport-verification voice+vision agent (LiveKit Ag
 requires-python = ">=3.11,<3.15"
 dependencies = [
     "livekit-agents[openai]~=1.8",
-    "python-dotenv",
-    "resend",
-    "Pillow",
-    "reportlab",
+    "python-dotenv~=1.2",
+    "resend~=2.43",
+    "Pillow~=12.3",
+    "reportlab~=5.0",
 ]
+
+[dependency-groups]
+dev = [
+    "pytest~=8.4",
+    "pytest-asyncio~=1.0",
+    "ruff~=0.14",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
