@@ -87,6 +87,14 @@ npm start               # ng serve, proxies /api/token to the dev token server
 
 Open `http://localhost:4200`, fill in a name and email, and join the call.
 
+## Live demo
+
+**[web-lime-alpha-39.vercel.app](https://web-lime-alpha-39.vercel.app)** — the
+agent is deployed on [LiveKit Cloud](https://cloud.livekit.io/)'s hosted agent
+runtime and the web app on [Vercel](https://vercel.com/). Give it a real name
+and a passport (or any ID-shaped document) to see it through, or a mismatched
+name to see the other branch.
+
 ## Testing
 
 ```bash

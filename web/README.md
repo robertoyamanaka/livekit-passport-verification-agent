@@ -53,5 +53,25 @@ npm run format:check # Prettier
 npm run build
 ```
 
-Production build output goes to `dist/web`. Set up for Vercel deployment —
-[`vercel.json`](vercel.json) has the SPA rewrite rule `api/token.ts` needs.
+Production build output goes to `dist/web/browser`. [`vercel.json`](vercel.json)
+has the SPA rewrite rule `api/token.ts` needs; Vercel's Angular preset finds
+the build output automatically.
+
+## Deploying
+
+```bash
+vercel link --yes   # first time only — links this directory to a Vercel project
+vercel env add LIVEKIT_URL production
+vercel env add LIVEKIT_API_KEY production
+vercel env add LIVEKIT_API_SECRET production
+vercel --prod
+```
+
+`api/token.ts` runs as a Vercel serverless function and needs those same
+three env vars — the ones from `.env`/`.env.local` above — set in the
+**Production** environment on Vercel's side; they never reach the browser.
+
+Note: `package.json` has `"type": "module"` (Vercel's Node runtime requires
+it to load an ES-module `api/token.ts` correctly), so any future plain
+CommonJS config file at the project root needs a `.cjs` extension —
+`eslint.config.cjs` already does.
