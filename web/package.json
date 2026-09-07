@@ -1,6 +1,7 @@
 {
   "name": "web",
   "version": "0.0.0",
+  "type": "module",
   "scripts": {
     "ng": "ng",
     "start": "ng serve --proxy-config proxy.conf.json",
@@ -33,6 +34,7 @@
     "@angular/cli": "^22.1.7",
     "@angular/compiler-cli": "^22.1.0",
     "@eslint/js": "^10.0.1",
+    "@types/node": "^22.20.1",
     "@vercel/node": "^12.0.1",
     "angular-eslint": "22.2.0",
     "dotenv": "^17.4.2",
