@@ -1,59 +1,57 @@
-# Web
+# web — landing page + call screen
 
-This project was generated using [Angular CLI](https://github.com/angular/angular-cli) version 22.1.7.
+The Angular 22 half of the demo: a landing page that collects the customer's
+name/email and starts a call, and the call screen itself (video, live
+transcript, passport-verification status, and the in-call contract
+e-signature panel). See the root [`README.md`](../README.md) for the
+project as a whole and how this talks to `agent/`.
 
-## Development server
+## Local setup
 
-To start a local development server, run:
+Requires Node matching `@angular/cli`'s minimum (v22.22.3, v24.15.0, or
+v26.0.0+ — check with `node -v`).
 
 ```bash
-ng serve
+npm install
+cp .env.example .env   # LIVEKIT_URL, LIVEKIT_API_KEY, LIVEKIT_API_SECRET
 ```
 
-Once the server is running, open your browser and navigate to `http://localhost:4200/`. The application will automatically reload whenever you modify any of the source files.
+This app has no backend of its own beyond one serverless function
+([`api/token.ts`](api/token.ts)) that dispatches the agent into a room and
+mints a short-lived LiveKit join token — the LiveKit API secret never reaches
+the browser. Locally, that function needs a stand-in server since there's no
+`vercel dev` in this workflow:
 
-## Code scaffolding
-
-Angular CLI includes powerful code scaffolding tools. To generate a new component, run:
+**Terminal 1:**
 
 ```bash
-ng generate component component-name
+npm run dev:token   # plain Node re-implementation of api/token.ts, for local dev only
 ```
 
-For a complete list of available schematics (such as `components`, `directives`, or `pipes`), run:
+**Terminal 2:**
 
 ```bash
-ng generate --help
+npm start            # ng serve; proxy.conf.json forwards /api/* to the dev token server
+```
+
+Open `http://localhost:4200`. You'll also need the `agent/` worker running
+(`uv run python src/agent.py dev`) for a call to actually connect to
+anything — see the root README's quick start.
+
+## Testing, linting, formatting
+
+```bash
+npm test            # Vitest, via Angular's native unit-test builder — no browser required
+npm run test:coverage
+npm run lint         # ESLint (angular-eslint)
+npm run format:check # Prettier
 ```
 
 ## Building
 
-To build the project run:
-
 ```bash
-ng build
+npm run build
 ```
 
-This will compile your project and store the build artifacts in the `dist/` directory. By default, the production build optimizes your application for performance and speed.
-
-## Running unit tests
-
-To execute unit tests with the [Vitest](https://vitest.dev/) test runner, use the following command:
-
-```bash
-ng test
-```
-
-## Running end-to-end tests
-
-For end-to-end (e2e) testing, run:
-
-```bash
-ng e2e
-```
-
-Angular CLI does not come with an end-to-end testing framework by default. You can choose one that suits your needs.
-
-## Additional Resources
-
-For more information on using the Angular CLI, including detailed command references, visit the [Angular CLI Overview and Command Reference](https://angular.dev/tools/cli) page.
+Production build output goes to `dist/web`. Set up for Vercel deployment —
+[`vercel.json`](vercel.json) has the SPA rewrite rule `api/token.ts` needs.
