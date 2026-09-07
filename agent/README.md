@@ -39,12 +39,34 @@ you need `dev` mode plus the `web/` app running locally (see the root
 
 ### Deploying to LiveKit Cloud
 
-Once you have a [LiveKit Cloud](https://cloud.livekit.io/) hosted-agent
-project set up (`lk agent create`), push secrets instead of relying on a
-local `.env.local`:
+First deploy, from this directory:
 
 ```bash
-lk agent update-secrets --secrets-file .env.local
+lk cloud auth                          # link the CLI to your LiveKit Cloud project
+lk agent create --secrets-file .env.local --silent
+```
+
+This uploads the code, builds the `Dockerfile` below, registers the agent,
+and deploys it — writing the resulting agent ID to `livekit.toml` (commit
+that file; it holds no secrets, just the project subdomain and agent ID).
+`lk agent create` copies every value from `--secrets-file` into the deployed
+agent's environment *except* `LIVEKIT_URL`/`LIVEKIT_API_KEY`/`LIVEKIT_API_SECRET`
+— LiveKit Cloud injects those itself for whichever project the agent belongs
+to, so `.env.local`'s `LIVEKIT_*` lines are silently ignored rather than
+double-set.
+
+The `Dockerfile` is [LiveKit's own `uv`-based template](https://docs.livekit.io/deploy/agents/builds/#dockerfile)
+with one change: its `CMD` points at `src/agent.py`, since that's where our
+entrypoint actually lives (the stock template assumes `agent.py` at the
+project root).
+
+For subsequent deploys:
+
+```bash
+lk agent deploy                        # ship a code change
+lk agent update-secrets --secrets-file .env.local   # update secrets only
+lk agent status                        # replica count, region, health
+lk agent logs                          # tail runtime logs
 ```
 
 ## Project layout
@@ -63,6 +85,9 @@ src/topics.py           LiveKit Text Stream topic name constants, shared
                         with web/src/app/models/events.ts on the other side
                         of the connection.
 tests/                  pytest — see the root README's Testing section.
+Dockerfile, .dockerignore, livekit.toml
+                        LiveKit Cloud deployment config — see "Deploying to
+                        LiveKit Cloud" above.
 ```
 
 ## Testing

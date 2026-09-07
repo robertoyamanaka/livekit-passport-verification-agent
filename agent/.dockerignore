@@ -1,0 +1,54 @@
+# Tests — not needed at runtime.
+tests/
+
+# Python bytecode and artifacts.
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.egg-info/
+dist/
+build/
+
+# Virtual environment — rebuilt in the image via `uv sync`.
+.venv/
+venv/
+
+# Caches and coverage output.
+.cache/
+.pytest_cache/
+.ruff_cache/
+coverage/
+
+# Logs and temp files.
+*.log
+*.gz
+*.tgz
+.tmp
+
+# Environment variables — LiveKit Cloud excludes these from the build
+# context automatically, but keep this explicit as defense in depth.
+.env
+.env.*
+
+# VCS, editor, OS.
+.git
+.gitignore
+.gitattributes
+.github/
+.idea/
+.vscode/
+.DS_Store
+
+# Docs — not needed inside the container.
+README.md
+
+# Coding agent files.
+.claude/
+.codex/
+.cursor/
+.windsurf/
+.gemini/
+CLAUDE.md
+AGENTS.md
+GEMINI.md
